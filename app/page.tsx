@@ -24,6 +24,12 @@ import type { TabId } from '@/components/types'
 const CURRENT_KEY = 'valuation_current_v1'
 const SAVED_KEY = 'valuation_saved_v1'
 
+/* Sandboxed embeds block page-initiated downloads, so that build copies the
+ * worksheet to the clipboard instead. Set NEXT_PUBLIC_EXPORT_MODE=clipboard.
+ * Both build tools substitute this literal, so the branch that is not used
+ * never reaches the bundle. */
+const EXPORT_TO_CLIPBOARD = process.env.NEXT_PUBLIC_EXPORT_MODE === 'clipboard'
+
 const TABS: { id: TabId; label: string; step?: string }[] = [
   { id: 'guide', label: 'Walkthrough' },
   { id: 'business', label: 'Business', step: '1' },
@@ -61,12 +67,14 @@ function hydrate(raw: unknown): Worksheet {
   }
 }
 
+/* First visit opens on the worked example, so the page shows what it does
+ * instead of a grid of zeroes. "New" still starts an empty sheet. */
 function readCurrent(): Worksheet {
   try {
     const cur = window.localStorage.getItem(CURRENT_KEY)
-    return cur ? hydrate(JSON.parse(cur)) : blankWorksheet()
+    return cur ? hydrate(JSON.parse(cur)) : exampleWorksheet()
   } catch {
-    return blankWorksheet()
+    return exampleWorksheet()
   }
 }
 
@@ -107,6 +115,7 @@ function Workbench() {
   const [saved, setSaved] = useState<SavedEntry[]>(readSaved)
   const [tab, setTab] = useState<TabId>('guide')
   const [showSaved, setShowSaved] = useState(false)
+  const [note, setNote] = useState('')
 
   useEffect(() => {
     try {
@@ -134,11 +143,12 @@ function Workbench() {
   function saveCurrent() {
     const name = (ws.company.ticker || ws.company.name || '').trim()
     if (!name) {
-      alert('Give the company a name or ticker on the Inputs tab first.')
+      setNote('Give the company a name or ticker on the Inputs tab first.')
       return
     }
     const entry: SavedEntry = { id: name.toLowerCase(), name, savedAt: new Date().toISOString(), ws }
     persistSaved([entry, ...saved.filter((s) => s.id !== entry.id)])
+    setNote(`Saved ${name}.`)
   }
 
   function loadSaved(entry: SavedEntry) {
@@ -147,14 +157,28 @@ function Workbench() {
     setTab('inputs')
   }
 
-  function exportJson() {
-    const blob = new Blob([JSON.stringify(ws, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${(ws.company.ticker || 'valuation').toLowerCase()}-valuation.json`
-    a.click()
-    URL.revokeObjectURL(url)
+  /* An if/else on a build-time constant, so the bundler drops the branch this
+   * build does not use — a sandboxed embed should not even ship the code for a
+   * download it is not allowed to start. */
+  async function exportJson() {
+    const json = JSON.stringify(ws, null, 2)
+    if (process.env.NEXT_PUBLIC_EXPORT_MODE === 'clipboard') {
+      try {
+        await navigator.clipboard.writeText(json)
+        setNote('Worksheet JSON copied to the clipboard.')
+      } catch {
+        setNote('Your browser blocked the clipboard. Run the app from the repository to export a file instead.')
+      }
+    } else {
+      const blob = new Blob([json], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${(ws.company.ticker || 'valuation').toLowerCase()}-valuation.json`
+      a.click()
+      URL.revokeObjectURL(url)
+      setNote('Worksheet downloaded.')
+    }
   }
 
   const d = calc.decision
@@ -196,11 +220,17 @@ function Workbench() {
               <Button size="sm" onClick={() => setShowSaved((s) => !s)}>
                 <FolderOpen size={13} className="inline mr-1" />Saved ({saved.length})
               </Button>
-              <Button size="sm" onClick={exportJson}>
-                <Download size={13} className="inline mr-1" />Export
+              <Button size="sm" onClick={() => { void exportJson() }}>
+                <Download size={13} className="inline mr-1" />{EXPORT_TO_CLIPBOARD ? 'Copy JSON' : 'Export'}
               </Button>
             </div>
           </div>
+
+          {note && (
+            <p className="mt-2 text-xs text-blue-300 bg-blue-500/10 border border-blue-500/20 rounded-lg px-2.5 py-1.5">
+              {note}
+            </p>
+          )}
 
           {showSaved && (
             <div className="mt-3 border border-zinc-800 rounded-xl bg-zinc-950 p-2 space-y-1">
