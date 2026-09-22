@@ -49,6 +49,29 @@ npm run lint    # eslint
 npx tsc --noEmit   # typecheck
 ```
 
+## Deploying
+
+The app is a **static export**: `next build` writes plain HTML/CSS/JS to `out/`, with no
+Node process in production. Anything that serves files can host it.
+
+**GitHub Pages** is wired up already. Pushing to `main` runs
+`.github/workflows/deploy.yml`, which builds the export and publishes it — the first run
+also switches Pages on for the repository. The site lands at
+`https://<user>.github.io/<repo>/`. The workflow passes the repository name to the build
+as `NEXT_PUBLIC_BASE_PATH`, because a project site is served from a sub-path rather than
+the domain root.
+
+**Vercel, Netlify or Cloudflare Pages**: import the repository and accept the detected
+Next.js defaults. They serve from the domain root, so leave `NEXT_PUBLIC_BASE_PATH`
+unset. These are the route to a custom domain.
+
+**Anywhere else**, including locally:
+
+```bash
+npm run build          # writes out/
+npx http-server out    # or any static file server
+```
+
 ## How the code is laid out
 
 ```
