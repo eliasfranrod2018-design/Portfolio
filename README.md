@@ -72,6 +72,40 @@ npm run build          # writes out/
 npx http-server out    # or any static file server
 ```
 
+## Portfolio plan (`/plan`)
+
+A second page for the portfolio as a whole: what you hold, what you are looking at and
+what you intend to do.
+
+- **Edit everything**: shares, cost basis, cash, sector and AI-chain link on every
+  holding; add or remove holdings and watchlist names. Prices come from the feed, or type
+  your own (the pencil next to a price).
+- **Plans per holding**: Keep, Sell, *Swap for…* or *Considering swap for…* plus a
+  ticker. A swap target you have not looked at yet is added to the watchlist.
+- **Three scenarios**: Today; After planned moves (sells, swaps and watchlist names
+  marked *Buy (planned)*); Full plan (adds every *Considering swap* and every *In full
+  plan* name). Each shows AI-chain share, independent bets, effective holdings, one-year
+  volatility, sectors and the new money needed.
+- **A note over every ticker**: its correlation with the rest of the portfolio, the
+  holding it moves most like, its share of the portfolio's risk, and — for watchlist
+  names and swaps — what it would do to portfolio volatility. A chip says whether it
+  diversifies or overlaps.
+- **Correlation matrix** of the picked scenario's positions.
+
+Each ticker links to its stockanalysis.com page for research. stockanalysis.com has no
+public data API, so prices come from:
+
+1. **The build-time feed.** `scripts/fetch-market-data.mjs` writes
+   `public/market-data.json` — price and a year of daily closes from Yahoo Finance's
+   public chart endpoint — for every ticker in `data/tickers.json`. The Pages workflow
+   runs it before each build and rebuilds hourly through the US trading day, so the
+   deployed prices are at most about an hour old. Add a ticker to `data/tickers.json` (the
+   page's *Copy ticker list* button gives you the whole list) and push.
+2. **Optionally, Twelve Data from the browser**, for tickers you just added: paste a free
+   API key into the Market data card. The key stays in your browser.
+
+The plan itself is stored in `localStorage`; Export / Import move it between devices.
+
 ## How the code is laid out
 
 ```
@@ -79,6 +113,11 @@ lib/valuation.ts   the engine — every formula, with no UI in it
 lib/guide.ts       the teaching content — walkthrough, glossary, checklists
 components/        the eight tabs and the shared inputs
 app/page.tsx       worksheet state, persistence, saved companies, export
+lib/portfolio.ts   the portfolio plan: holdings, watchlist, scenarios, diversification
+lib/fit.ts         correlations, volatility, risk share and the per-ticker fit notes
+lib/marketData.ts  loading the price feed, and the optional Twelve Data fallback
+components/plan/   the /plan page
+scripts/fetch-market-data.mjs   writes public/market-data.json at build time
 ```
 
 `lib/valuation.ts` is deliberately free of React: it takes a `Worksheet` and returns a

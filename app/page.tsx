@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import Link from 'next/link'
 import { Download, FilePlus2, FolderOpen, Save, Trash2, Wand2 } from 'lucide-react'
 import {
   blankWorksheet,
@@ -208,6 +209,11 @@ function Workbench() {
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
+              {!EXPORT_TO_CLIPBOARD && (
+                <Link href="/plan/" className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-xl font-medium px-2.5 py-1.5 text-xs">
+                  Portfolio plan
+                </Link>
+              )}
               <Button size="sm" onClick={() => { setWs(blankWorksheet()); setTab('inputs') }}>
                 <FilePlus2 size={13} className="inline mr-1" />New
               </Button>

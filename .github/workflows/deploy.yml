@@ -4,6 +4,12 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  # Rebuild through the US trading day so the portfolio plan's prices stay
+  # current: hourly 9:20am-4:20pm New York (EDT), then once after the close.
+  # Cron is UTC; in winter (EST) these land an hour earlier in New York.
+  schedule:
+    - cron: '20 13-20 * * 1-5'
+    - cron: '35 21 * * 1-5'
 
 # GITHUB_TOKEN needs these to publish a Pages deployment.
 permissions:
@@ -35,6 +41,11 @@ jobs:
           enablement: true
 
       - run: npm ci
+
+      # Prices and a year of daily closes for data/tickers.json, into
+      # public/market-data.json. Never fails the build.
+      - name: Fetch market data
+        run: node scripts/fetch-market-data.mjs
 
       # base_path is "/<repo>" for a project site, "" for a user site.
       - name: Build static export
