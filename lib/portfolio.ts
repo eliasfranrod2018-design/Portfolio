@@ -59,6 +59,8 @@ export interface Holding {
   plan: HoldingPlan
   /** The ticker you would buy instead, for 'swap' and 'considering'. */
   swapFor: string
+  /** Your broker's rating, as free text (Schwab's A–F). */
+  rating: string
   note: string
 }
 
@@ -241,7 +243,7 @@ export function hydratePlan(raw: unknown): Plan {
   const p = raw as Partial<Plan>
   const blankH: Holding = {
     id: '', ticker: '', name: '', shares: 0, costBasis: 0, price: 0, priceMode: 'live',
-    sector: 'Unknown', ai: false, role: '', plan: 'keep', swapFor: '', note: '',
+    sector: 'Unknown', ai: false, role: '', plan: 'keep', swapFor: '', rating: '', note: '',
   }
   const blankW: WatchItem = {
     id: '', ticker: '', name: '', group: 'Ideas', sector: 'Unknown', ai: false, role: '',
@@ -262,18 +264,18 @@ const IND = 'Industrials'
 const COMM = 'Communication services'
 const FIN = 'Financials'
 
-type H = [string, string, number, number, number, string, boolean, string, HoldingPlan?, string?]
-/** From the Schwab snapshot: ticker, name, shares, price, cost basis, sector, AI chain, role, plan, swap target. */
+type H = [string, string, number, number, number, string, boolean, string, string, HoldingPlan?, string?]
+/** From the Schwab snapshot: ticker, name, shares, price, cost basis, sector, AI chain, role, Schwab rating, plan, swap target. */
 const SEED_HOLDINGS: H[] = [
-  ['MSFT', 'Microsoft', 1, 525.955, 515.27, IT, true, 'Cloud spender, software'],
-  ['AVGO', 'Broadcom', 1, 362.175, 362.11, IT, true, 'AI chips'],
-  ['MGNI', 'Magnite', 11, 25.12, 161.23, COMM, false, 'Ad tech'],
-  ['VRT', 'Vertiv', 1, 256.2, 311.3, IND, true, 'Power and cooling', 'swap', 'C'],
-  ['NVDA', 'Nvidia', 1, 237.14, 197.95, IT, true, 'AI chips'],
-  ['ANET', 'Arista Networks', 1, 207.54, 152.24, IT, true, 'Networking', 'considering', 'DELL'],
-  ['TEAM', 'Atlassian', 1, 195.27, 93.77, IT, false, 'Work software'],
-  ['NVT', 'nVent Electric', 1, 169.78, 130.52, IND, true, 'Power and cooling'],
-  ['BX', 'Blackstone', 1, 110.51, 113.03, FIN, false, 'Asset manager'],
+  ['MSFT', 'Microsoft', 1, 525.955, 515.27, IT, true, 'Cloud spender, software', 'A'],
+  ['AVGO', 'Broadcom', 1, 362.175, 362.11, IT, true, 'AI chips', 'C'],
+  ['MGNI', 'Magnite', 11, 25.12, 161.23, COMM, false, 'Ad tech', 'C'],
+  ['VRT', 'Vertiv', 1, 256.2, 311.3, IND, true, 'Power and cooling', 'C', 'swap', 'C'],
+  ['NVDA', 'Nvidia', 1, 237.14, 197.95, IT, true, 'AI chips', 'B'],
+  ['ANET', 'Arista Networks', 1, 207.54, 152.24, IT, true, 'Networking', 'B', 'considering', 'DELL'],
+  ['TEAM', 'Atlassian', 1, 195.27, 93.77, IT, false, 'Work software', 'C'],
+  ['NVT', 'nVent Electric', 1, 169.78, 130.52, IND, true, 'Power and cooling', 'D'],
+  ['BX', 'Blackstone', 1, 110.51, 113.03, FIN, false, 'Asset manager', 'C'],
 ]
 
 type W = [string, string, string, string, boolean, string, WatchStatus, string]
@@ -321,8 +323,8 @@ export function seedPlan(): Plan {
   return {
     v: 1,
     cash: 152.34,
-    holdings: SEED_HOLDINGS.map(([ticker, name, shares, price, costBasis, sector, ai, role, plan, swapFor]) => ({
-      id: uid(), ticker, name, shares, price, priceMode: 'live', costBasis, sector, ai, role,
+    holdings: SEED_HOLDINGS.map(([ticker, name, shares, price, costBasis, sector, ai, role, rating, plan, swapFor]) => ({
+      id: uid(), ticker, name, shares, price, priceMode: 'live', costBasis, sector, ai, role, rating,
       plan: plan ?? 'keep', swapFor: swapFor ?? '', note: '',
     })),
     watchlist: SEED_WATCH.map(([ticker, name, group, sector, ai, role, status, note]) => ({

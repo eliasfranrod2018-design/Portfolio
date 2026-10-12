@@ -1,4 +1,6 @@
 import type { Metadata } from 'next'
+import '@fontsource-variable/dm-sans'
+import './plan.css'
 import PlanPage from '@/components/plan/PlanApp'
 
 export const metadata: Metadata = {

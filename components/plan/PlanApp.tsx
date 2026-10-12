@@ -26,24 +26,20 @@ import {
   type Series,
 } from '@/lib/marketData'
 import { blend, fitContext, matrix } from '@/lib/fit'
-import { Button, Card } from '@/components/Ui'
 import { AddHolding, AddWatch, HoldingsTable, WatchlistTable } from './Tables'
 import { ChainSplit, CorrMatrix, Legend, PositionBars, SectorBars } from './Charts'
-import { Seg, money, money0, pct } from './bits'
+import { Seg, money, pct, signed } from './bits'
 
 const PLAN_KEY = 'portfolio_plan_v1'
 const noopSubscribe = () => () => {}
 
 export default function PlanPage() {
   const mounted = useSyncExternalStore(noopSubscribe, () => true, () => false)
-  if (!mounted) {
-    return (
-      <div className="min-h-screen grid place-items-center">
-        <p className="text-zinc-600 text-sm">Loading plan…</p>
-      </div>
-    )
-  }
-  return <PlanApp />
+  return (
+    <div className="pp">
+      <div className="pp-wrap">{mounted ? <PlanApp /> : <p className="pp-sub">Loading plan…</p>}</div>
+    </div>
+  )
 }
 
 function readPlan(): Plan {
@@ -63,6 +59,8 @@ function ago(iso: string | null) {
   const h = Math.round(mins / 60)
   return h < 48 ? `${h} h ago` : `${Math.round(h / 24)} days ago`
 }
+
+const f1 = (v: number) => v.toFixed(1)
 
 function PlanApp() {
   const [plan, setPlanState] = useState<Plan>(readPlan)
@@ -141,6 +139,7 @@ function PlanApp() {
   }, [scenarios, ctx.rets])
 
   const picked = metrics[scenario]
+  const pickedLabel = SCENARIOS.find((s) => s.id === scenario)!.label
   const pickedPositions = scenarios[scenario].positions
   const { matrixTickers, corr } = useMemo(() => {
     const ts = pickedPositions.slice(0, 16).map((p) => p.ticker)
@@ -206,243 +205,249 @@ function PlanApp() {
   const today = metrics.today
   const stocksToday = today.invested
   const costToday = plan.holdings.reduce((t, h) => t + h.costBasis, 0)
+  const gainToday = stocksToday - costToday
   const liveCount = plan.holdings.filter((h) => h.priceMode === 'live' && live[norm(h.ticker)]).length
+  const volText = (id: ScenarioId) => (vols[id] ? pct(vols[id]!.vol) : '—')
 
   return (
-    <div className="min-h-screen bg-[#0f0f0f] pb-12">
-      <header className="bg-zinc-900 border-b border-zinc-800 sticky top-0 z-20">
-        <div className="px-4 py-3 max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-white font-bold text-lg">Portfolio plan</h1>
-            <p className="text-zinc-500 text-xs">
-              {feed.generatedAt
-                ? `Prices from ${feed.source}, updated ${ago(feed.generatedAt)} · ${liveCount} of ${plan.holdings.length} holdings live`
-                : feedError
-                  ? 'No price feed on this build: values use the prices you entered.'
-                  : 'Loading prices…'}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Link href="/" className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-xl font-medium px-2.5 py-1.5 text-xs">
-              Valuation workbench
-            </Link>
-            <Button size="sm" onClick={() => { void refreshFeed(); setExtra(readCache()) }}>
-              <RefreshCw size={13} className="inline mr-1" />Refresh
-            </Button>
-            <Button size="sm" onClick={exportPlan}><Download size={13} className="inline mr-1" />Export</Button>
-            <Button size="sm" onClick={() => fileRef.current?.click()}><Upload size={13} className="inline mr-1" />Import</Button>
-            <Button
-              size="sm"
-              variant="danger"
-              onClick={() => {
-                if (window.confirm('Replace your plan with the starting plan? Export first if you want to keep it.')) setPlanState(seedPlan())
-              }}
-            >
-              <RotateCcw size={13} className="inline mr-1" />Reset
-            </Button>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="application/json,.json"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0]
-                if (f) void importPlan(f)
-                e.target.value = ''
-              }}
-            />
-          </div>
+    <>
+      <header className="pp-hd" id="summary">
+        <div>
+          <h1>Portfolio plan</h1>
+          <p className="pp-take">
+            Planned moves take the share of your account tied to AI data center spending from <b>{pct(today.aiShare)}</b> to{' '}
+            <b>{pct(metrics.moves.aiShare)}</b>. The full plan brings it to <b>{pct(metrics.full.aiShare)}</b> across{' '}
+            <b>{metrics.full.sectors}</b> of 11 sectors.
+          </p>
+          <p className="pp-sub">
+            Stocks today: {money(stocksToday)}, {gainToday >= 0 ? 'up' : 'down'} {signed(gainToday, money)} (
+            {costToday > 0 ? signed(gainToday / costToday, pct) : '—'}) on {money(costToday)} invested.{' '}
+            {feed.generatedAt
+              ? `Prices from ${feed.source}, ${ago(feed.generatedAt)}; ${liveCount} of ${plan.holdings.length} holdings live.`
+              : feedError
+                ? 'No price feed on this build, so values use the prices you entered.'
+                : 'Loading prices…'}
+          </p>
         </div>
-        {note && (
-          <div className="px-4 pb-3 max-w-6xl mx-auto">
-            <p className="text-xs text-blue-300 bg-blue-500/10 border border-blue-500/20 rounded-lg px-2.5 py-1.5 flex justify-between gap-2">
-              <span className="break-all">{note}</span>
-              <button type="button" className="text-blue-400 hover:text-white" onClick={() => setNote('')}>×</button>
-            </p>
-          </div>
-        )}
+        <div className="pp-bar">
+          <button type="button" className="pp-btn" onClick={() => { void refreshFeed(); setExtra(readCache()) }}>
+            <RefreshCw size={12} />Refresh
+          </button>
+          <button type="button" className="pp-btn" onClick={exportPlan}><Download size={12} />Export</button>
+          <button type="button" className="pp-btn" onClick={() => fileRef.current?.click()}><Upload size={12} />Import</button>
+          <button
+            type="button"
+            className="pp-btn"
+            onClick={() => {
+              if (window.confirm('Replace your plan with the starting plan? Export first if you want to keep it.')) setPlanState(seedPlan())
+            }}
+          >
+            <RotateCcw size={12} />Reset
+          </button>
+          <Link href="/" className="pp-btn">Valuation workbench</Link>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/json,.json"
+            hidden
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              if (f) void importPlan(f)
+              e.target.value = ''
+            }}
+          />
+        </div>
       </header>
 
-      <main className="p-4 max-w-6xl mx-auto space-y-4">
-        <section className="space-y-2">
-          <p className="text-zinc-200 text-[15px] leading-relaxed max-w-3xl">
-            Planned moves take the share of your account tied to AI data center spending from{' '}
-            <b className="text-white">{pct(today.aiShare)}</b> to <b className="text-white">{pct(metrics.moves.aiShare)}</b>. The full
-            plan brings it to <b className="text-white">{pct(metrics.full.aiShare)}</b> across{' '}
-            <b className="text-white">{metrics.full.sectors}</b> of 11 sectors.
-          </p>
-          <p className="text-zinc-500 text-xs">
-            Stocks today: {money(stocksToday)}, {stocksToday >= costToday ? 'up' : 'down'} {money(Math.abs(stocksToday - costToday))} (
-            {costToday > 0 ? pct((stocksToday - costToday) / costToday) : '—'}) on {money(costToday)} invested.
-          </p>
-        </section>
-
-        <Seg label="Scenario" value={scenario} options={SCENARIOS.map((s) => ({ value: s.id, label: s.label }))} onChange={setScenario} />
-
-        <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
-          <Tile label="Tied to AI buildout" value={pct(picked.aiShare)} sub={`Today ${pct(today.aiShare)}`} />
-          <Tile label="Independent bets" value={picked.independentBets.toFixed(1)} sub={`Today ${today.independentBets.toFixed(1)}`} />
-          <Tile label="Acts like (equal stocks)" value={picked.effectiveHoldings.toFixed(1)} sub={`Today ${today.effectiveHoldings.toFixed(1)}`} />
-          <Tile label="Volatility (1y)" value={vols[scenario] ? pct(vols[scenario]!.vol) : '—'} sub={vols.today ? `Today ${pct(vols.today.vol)}` : 'Needs price history'} />
-          <Tile label="Sectors covered, of 11" value={String(picked.sectors)} sub={`Today ${today.sectors}`} />
-          <Tile label="Stocks held" value={String(picked.stocks)} sub={`Today ${today.stocks}`} />
-          <Tile
-            label="New money needed"
-            value={money0(picked.newMoney)}
-            sub={picked.top ? `Biggest: ${picked.top.ticker} ${pct(picked.topShare)}` : ''}
-          />
-        </section>
-
-        <Card title="Where the money sits" subtitle="Share of the whole account in the AI data center chain, everything else, and cash.">
-          <Legend />
-          <ChainSplit metrics={metrics} picked={scenario} />
-        </Card>
-
-        <div className="grid gap-4 md:grid-cols-2">
-          <Card title="Sector mix" subtitle={`${SCENARIOS.find((s) => s.id === scenario)!.label}; the dashed mark is today.`}>
-            <SectorBars m={picked} today={today} />
-          </Card>
-          <Card title="Positions" subtitle="Every position in the picked scenario, as a share of the account.">
-            <Legend />
-            <PositionBars positions={pickedPositions} account={picked.account} />
-          </Card>
+      {note && (
+        <div className="pp-msg" role="status">
+          <span>{note}</span>
+          <button type="button" className="pp-icon" aria-label="Dismiss" onClick={() => setNote('')}>×</button>
         </div>
+      )}
 
-        <Card title="Scenarios side by side" subtitle={SCENARIOS.map((s) => `${s.label}: ${s.blurb}`).join(' ')}>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm tabular-nums">
-              <thead>
-                <tr className="text-[11px] text-zinc-500 border-b border-zinc-800">
-                  {['Scenario', 'Account', 'AI chain', 'Bets', 'Acts like', 'Volatility', 'Sectors', 'Stocks', 'Biggest', 'New money'].map((h, i) => (
-                    <th key={h} className={`py-1.5 px-1.5 font-medium ${i ? 'text-right' : 'text-left'}`}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {SCENARIOS.map((s) => {
-                  const m = metrics[s.id]
-                  return (
-                    <tr key={s.id} className={`border-b border-zinc-800/60 ${s.id === scenario ? 'text-white' : 'text-zinc-400'}`}>
-                      <td className="py-1.5 px-1.5">{s.label}</td>
-                      <td className="py-1.5 px-1.5 text-right">{money0(m.account)}</td>
-                      <td className="py-1.5 px-1.5 text-right">{pct(m.aiShare)}</td>
-                      <td className="py-1.5 px-1.5 text-right">{m.independentBets.toFixed(1)}</td>
-                      <td className="py-1.5 px-1.5 text-right">{m.effectiveHoldings.toFixed(1)}</td>
-                      <td className="py-1.5 px-1.5 text-right">{vols[s.id] ? pct(vols[s.id]!.vol) : '—'}</td>
-                      <td className="py-1.5 px-1.5 text-right">{m.sectors}</td>
-                      <td className="py-1.5 px-1.5 text-right">{m.stocks}</td>
-                      <td className="py-1.5 px-1.5 text-right">{m.top ? `${m.top.ticker} ${pct(m.topShare)}` : '—'}</td>
-                      <td className="py-1.5 px-1.5 text-right">{money0(m.newMoney)}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </Card>
+      <Seg label="Scenario" value={scenario} options={SCENARIOS.map((s) => ({ value: s.id, label: s.label }))} onChange={setScenario} />
 
-        <Card
-          title="Holdings and planned moves"
-          subtitle="Edit shares, cost and cash directly. The note over each ticker is how it moves with the rest of your portfolio over the last year. Set Plan to “Considering swap for…” and type a ticker to see what the swap would do."
-        >
-          <HoldingsTable plan={plan} setPlan={setPlan} series={series} live={live} ctx={ctx} />
-          <AddHolding plan={plan} setPlan={setPlan} series={series} />
-        </Card>
+      <section className="pp-tiles" id="headline">
+        <Tile label="Tied to AI buildout" value={pct(picked.aiShare)} sub={`Today ${pct(today.aiShare)}`} />
+        <Tile label="Independent bets" value={f1(picked.independentBets)} sub={`Today ${f1(today.independentBets)}`} />
+        <Tile label="Acts like (equal stocks)" value={f1(picked.effectiveHoldings)} sub={`Today ${f1(today.effectiveHoldings)}`} />
+        <Tile label="Volatility, last year" value={volText(scenario)} sub={vols.today ? `Today ${volText('today')}` : 'Needs price history'} />
+        <Tile label="Sectors covered, of 11" value={String(picked.sectors)} sub={`Today ${today.sectors}`} />
+        <Tile label="Stocks held" value={String(picked.stocks)} sub={`Today ${today.stocks}`} />
+        <Tile label="New money needed" value={money(picked.newMoney)} sub={picked.top ? `Biggest: ${picked.top.ticker} ${pct(picked.topShare)}` : ''} />
+      </section>
 
-        <Card
-          title="Watchlist"
-          subtitle="Every stock you are looking at. The note over each ticker says how it correlates with what you hold today and whether adding the amount shown would lower your portfolio's volatility."
-        >
-          <WatchlistTable plan={plan} setPlan={setPlan} series={series} live={live} ctx={ctx} />
-          <AddWatch plan={plan} setPlan={setPlan} series={series} />
-        </Card>
+      <section className="pp-card" id="chain-split-card">
+        <h2>Where the money sits</h2>
+        <p className="pp-note">Share of the whole account in the AI data center chain, everything else, and cash. The scenario you picked is solid.</p>
+        <Legend />
+        <ChainSplit metrics={metrics} picked={scenario} />
+      </section>
 
-        <Card
-          title="How your positions move together"
-          subtitle={`Correlation of daily returns over the last year, ${SCENARIOS.find((s) => s.id === scenario)!.label.toLowerCase()}. Near 1: they rise and fall together. Near 0: independent. Amber is high, blue is low.`}
-        >
-          {matrixTickers.some((t) => ctx.rets[t]) ? (
-            <CorrMatrix tickers={matrixTickers} m={corr} />
-          ) : (
-            <p className="text-zinc-500 text-sm">Needs price history: it appears once the feed has loaded.</p>
-          )}
-        </Card>
-
-        <Card title="Market data" subtitle="Where the live numbers come from, and how to cover a ticker you just added.">
-          <div className="space-y-3 text-sm text-zinc-400">
-            <p>
-              <b className="text-zinc-200">Daily feed.</b>{' '}
-              {feed.generatedAt
-                ? `${Object.keys(feed.series).length} tickers from ${feed.source}, fetched ${ago(feed.generatedAt)} (${new Date(feed.generatedAt).toLocaleString()}).`
-                : feedError
-                  ? `Not available (${feedError}). It is written when the site is built by GitHub Actions.`
-                  : 'Loading…'}{' '}
-              The site rebuilds hourly through the trading day, so these prices run about an hour behind at most.
-              {feed.failed.length > 0 && ` Did not load: ${feed.failed.join(', ')}.`}
-            </p>
-            <p>
-              <b className="text-zinc-200">Not in the feed: </b>
-              {missing.length ? missing.join(', ') : 'nothing; every ticker in your plan is covered.'}
-            </p>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button size="sm" onClick={() => void copyTickers()}><Copy size={13} className="inline mr-1" />Copy ticker list for data/tickers.json</Button>
-              <span className="text-xs text-zinc-500">Paste it into the repository and push: from then on the feed carries them.</span>
-            </div>
-            <div className="border-t border-zinc-800 pt-3 space-y-2">
-              <p>
-                <b className="text-zinc-200">Right now, from your browser (optional).</b> A free{' '}
-                <a className="text-blue-400 hover:underline" href="https://twelvedata.com/pricing" target="_blank" rel="noreferrer">Twelve Data</a>{' '}
-                key loads prices and a year of history for the missing tickers, {TWELVE_DATA_BATCH} a minute. The key stays in this browser.
-              </p>
-              <div className="flex flex-wrap items-center gap-2">
-                <input
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => {
-                    setApiKey(e.target.value.trim())
-                    writeApiKey(e.target.value.trim())
-                  }}
-                  placeholder="Twelve Data API key"
-                  aria-label="Twelve Data API key"
-                  className="w-64 bg-zinc-950 text-white rounded-lg border border-zinc-700 focus:outline-none focus:border-blue-500 px-2 py-1 text-sm"
-                />
-                <Button size="sm" variant="primary" onClick={() => void loadMissing()}>
-                  {busy ? 'Loading…' : `Load ${Math.min(missing.length, TWELVE_DATA_BATCH)} missing`}
-                </Button>
-              </div>
-            </div>
-            <p className="text-xs text-zinc-500 border-t border-zinc-800 pt-3">
-              Each ticker links to its stockanalysis.com page for research: financials, forecasts and news. stockanalysis.com offers no
-              public data API, so prices come from the feed above instead.
-            </p>
-          </div>
-        </Card>
-
-        <Card title="How to read the numbers">
-          <div className="grid gap-4 md:grid-cols-3 text-sm text-zinc-400">
-            <Def term="Acts like (effective number of holdings)" tech="1 ÷ the sum of each stock's squared weight: the inverse Herfindahl-Hirschman Index." plain="How many equal-sized stocks your portfolio behaves like." />
-            <Def term="Independent bets" tech="The same formula, after grouping every stock in the AI data center chain into one position." plain="How many things that move on their own you really own." />
-            <Def term="Correlation" tech="Pearson correlation of daily returns over the last year, from −1 to 1." plain="How closely two stocks rise and fall together. Below 0.4 they mostly go their own way; above 0.7 they move as one." />
-            <Def term="Volatility" tech="Standard deviation of the portfolio's daily returns, ×√252 to annualize." plain="How much the account typically swings in a year. A good diversifier lowers it." />
-            <Def term="Share of risk" tech="Weight × covariance with the portfolio ÷ portfolio variance." plain="How much of the swings one stock is responsible for. More risk than money means it concentrates risk." />
-            <Def term="AI data center chain" tech="Companies whose revenue depends on cloud and AI infrastructure spending, from chip tools to the cloud giants." plain="Stocks that would likely fall together if AI spending slowed." />
-          </div>
-          <p className="text-xs text-zinc-600 mt-4">
-            Correlations look back one year and change over time; they say how stocks moved, not how they will. Your plan is stored in
-            this browser only: export it to keep a copy or move it to another device. A planning tool, not financial advice.
+      <div className="pp-grid">
+        <section className="pp-card" id="sector-card">
+          <h2>Sector mix</h2>
+          <p className="pp-note">
+            {scenario === 'today'
+              ? 'Share of the account in each of the 11 sectors, plus cash.'
+              : 'Share of the account in each sector, plus cash. The dashed mark is today.'}
           </p>
-        </Card>
-      </main>
-    </div>
+          <SectorBars m={picked} today={today} scenario={scenario} />
+        </section>
+        <section className="pp-card" id="positions-card">
+          <h2>Positions</h2>
+          <p className="pp-note">Every position in the picked scenario, colored by whether it rides AI data center spending.</p>
+          <PositionBars positions={pickedPositions} account={picked.account} cash={scenarios[scenario].cash} />
+        </section>
+      </div>
+
+      <section className="pp-card" id="compare-card">
+        <h2>Scenarios side by side</h2>
+        <p className="pp-note">{SCENARIOS.map((s) => `${s.label}: ${s.blurb}`).join(' ')}</p>
+        <div className="pp-tw">
+          <table>
+            <thead>
+              <tr>
+                <th>Scenario</th>
+                <th className="pp-num">AI chain</th>
+                <th className="pp-num">Bets</th>
+                <th className="pp-num">Acts like</th>
+                <th className="pp-num">Volatility</th>
+                <th className="pp-num">Sectors</th>
+                <th className="pp-num">Stocks</th>
+                <th className="pp-num pp-opt">Biggest</th>
+                <th className="pp-num">New money</th>
+              </tr>
+            </thead>
+            <tbody>
+              {SCENARIOS.map((s) => {
+                const m = metrics[s.id]
+                return (
+                  <tr key={s.id} className={s.id === scenario ? 'pp-sel' : ''}>
+                    <td>{s.label}</td>
+                    <td className="pp-num">{pct(m.aiShare)}</td>
+                    <td className="pp-num">{f1(m.independentBets)}</td>
+                    <td className="pp-num">{f1(m.effectiveHoldings)}</td>
+                    <td className="pp-num">{volText(s.id)}</td>
+                    <td className="pp-num">{m.sectors}</td>
+                    <td className="pp-num">{m.stocks}</td>
+                    <td className="pp-num pp-opt">{m.top?.ticker ?? '—'}</td>
+                    <td className="pp-num">{money(m.newMoney)}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="pp-card" id="holdings-card">
+        <h2>Current holdings and planned moves</h2>
+        <p className="pp-note">
+          Edit shares, cost, cash and the rest in place. Highlighted rows have a planned change. The note over each ticker is how it moves
+          with the rest of your portfolio over the last year; set Plan to “Considering swap for…” and type a ticker to see what the swap
+          would do.
+        </p>
+        <HoldingsTable plan={plan} setPlan={setPlan} series={series} live={live} ctx={ctx} />
+        <AddHolding plan={plan} setPlan={setPlan} series={series} />
+      </section>
+
+      <section className="pp-card" id="possibles-card">
+        <h2>Possibles</h2>
+        <p className="pp-note">
+          Every stock you are looking at, grouped by the job it would do in your portfolio. The note over each ticker says how it correlates
+          with what you hold today and whether adding the amount shown would lower your portfolio’s volatility.
+        </p>
+        <WatchlistTable plan={plan} setPlan={setPlan} series={series} live={live} ctx={ctx} />
+        <AddWatch plan={plan} setPlan={setPlan} series={series} />
+      </section>
+
+      <section className="pp-card" id="correlation-card">
+        <h2>How your positions move together</h2>
+        <p className="pp-note">
+          Correlation of daily returns over the last year, {pickedLabel.toLowerCase()}. Near 1 they rise and fall together; near 0 they go
+          their own way. Amber is high, blue is low.
+        </p>
+        {matrixTickers.some((t) => ctx.rets[t]) ? (
+          <CorrMatrix tickers={matrixTickers} m={corr} />
+        ) : (
+          <p className="pp-note">Appears once price history has loaded.</p>
+        )}
+      </section>
+
+      <section className="pp-card pp-data" id="market-data">
+        <h2>Market data</h2>
+        <p className="pp-note">Where the live numbers come from, and how to cover a ticker you just added.</p>
+        <p>
+          <b>Daily feed.</b>{' '}
+          {feed.generatedAt
+            ? `${Object.keys(feed.series).length} tickers from ${feed.source}, fetched ${ago(feed.generatedAt)} (${new Date(feed.generatedAt).toLocaleString()}).`
+            : feedError
+              ? `Not available on this build (${feedError}). GitHub Actions writes it each time the site is built.`
+              : 'Loading…'}{' '}
+          The site rebuilds hourly through the trading day, so prices run at most about an hour behind.
+          {feed.failed.length > 0 && ` Did not load: ${feed.failed.join(', ')}.`}
+        </p>
+        <p>
+          <b>Not in the feed:</b> {missing.length ? missing.join(', ') : 'nothing. Every ticker in your plan is covered.'}
+        </p>
+        <div className="pp-row">
+          <button type="button" className="pp-btn" onClick={() => void copyTickers()}><Copy size={12} />Copy ticker list for data/tickers.json</button>
+          <span className="pp-sub">Paste it into the repository and push; from the next build on, the feed carries them.</span>
+        </div>
+        <p>
+          <b>Right now, from your browser (optional).</b> A free{' '}
+          <a href="https://twelvedata.com/pricing" target="_blank" rel="noreferrer">Twelve Data</a> key loads prices and a year of history for
+          the missing tickers, {TWELVE_DATA_BATCH} a minute. The key stays in this browser.
+        </p>
+        <div className="pp-row">
+          <input
+            type="password"
+            className="pp-search"
+            value={apiKey}
+            onChange={(e) => {
+              setApiKey(e.target.value.trim())
+              writeApiKey(e.target.value.trim())
+            }}
+            placeholder="Twelve Data API key"
+            aria-label="Twelve Data API key"
+          />
+          <button type="button" className="pp-btn pp-btn-primary" onClick={() => void loadMissing()}>
+            {busy ? 'Loading…' : `Load ${Math.min(missing.length, TWELVE_DATA_BATCH)} missing`}
+          </button>
+        </div>
+        <p className="pp-sub" style={{ margin: 0 }}>
+          Each ticker links to its stockanalysis.com page for research. stockanalysis.com has no public data API, so the prices come from the
+          feed above.
+        </p>
+      </section>
+
+      <section className="pp-card" id="definitions">
+        <h2>How to read the numbers</h2>
+        <div className="pp-defs">
+          <Def term="Acts like (effective number of holdings)" tech="1 divided by the sum of each stock's squared weight, the inverse of the Herfindahl-Hirschman Index." plain="how many equal-sized stocks your portfolio behaves like." />
+          <Def term="Independent bets" tech="the same formula, after grouping every stock in the AI data center chain into one position." plain="how many things that move on their own you really own." />
+          <Def term="AI data center chain" tech="companies whose revenue depends on cloud and AI infrastructure spending, from chip tools to the cloud giants." plain="stocks that would likely fall together if AI spending slowed." />
+          <Def term="Correlation" tech="Pearson correlation of daily returns over the last year, from −1 to 1." plain="how closely two stocks rise and fall together. Below 0.4 they mostly go their own way; above 0.7 they move as one." />
+          <Def term="Volatility" tech="standard deviation of the portfolio's daily returns, times √252 to annualize." plain="how much the account typically swings in a year. A good diversifier lowers it." />
+          <Def term="Share of risk" tech="weight × covariance with the portfolio ÷ portfolio variance." plain="how much of the swings one stock is responsible for. More risk than money means it concentrates risk." />
+        </div>
+        <p className="pp-foot">
+          Correlations look back one year and change over time: they say how stocks moved, not how they will. Your plan is saved in this
+          browser only; export it to keep a copy or move it to another device. This is a planning tool, not financial advice.
+        </p>
+      </section>
+    </>
   )
 }
 
 function Tile({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl px-3 py-2.5 min-w-0">
-      <div className="text-[11px] text-zinc-500">{label}</div>
-      <div className="text-white text-xl font-semibold tabular-nums my-0.5">{value}</div>
-      <div className="text-[11px] text-zinc-500 truncate">{sub}</div>
+    <div className="pp-tile">
+      <div className="pp-tl">{label}</div>
+      <div className="pp-tv">{value}</div>
+      <div className="pp-tc">{sub}</div>
     </div>
   )
 }
@@ -450,9 +455,9 @@ function Tile({ label, value, sub }: { label: string; value: string; sub: string
 function Def({ term, tech, plain }: { term: string; tech: string; plain: string }) {
   return (
     <div>
-      <p className="text-zinc-200 font-medium mb-1">{term}</p>
-      <p className="mb-1"><span className="text-zinc-500">Technical:</span> {tech}</p>
-      <p><span className="text-zinc-500">Plain English:</span> {plain}</p>
+      <p className="pp-dt">{term}</p>
+      <p>Technical: {tech}</p>
+      <p>Plain English: {plain}</p>
     </div>
   )
 }

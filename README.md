@@ -54,10 +54,12 @@ npx tsc --noEmit   # typecheck
 The app is a **static export**: `next build` writes plain HTML/CSS/JS to `out/`, with no
 Node process in production. Anything that serves files can host it.
 
-**GitHub Pages** is wired up already. Pushing to `main` runs
-`.github/workflows/deploy.yml`, which builds the export and publishes it — the first run
-also switches Pages on for the repository. The site lands at
-`https://<user>.github.io/<repo>/`. The workflow passes the repository name to the build
+**GitHub Pages** is wired up already. Switch it on once in the repository: **Settings →
+Pages → Build and deployment → Source: GitHub Actions** (the workflow's own token is not
+allowed to do this). After that, pushing to `main` runs `.github/workflows/deploy.yml`,
+which builds the export and publishes it, and the same workflow rebuilds on a schedule
+through the trading day to refresh prices. The site lands at
+`https://<user>.github.io/<repo>/`, and the portfolio plan at `…/<repo>/plan/`. The workflow passes the repository name to the build
 as `NEXT_PUBLIC_BASE_PATH`, because a project site is served from a sub-path rather than
 the domain root.
 

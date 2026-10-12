@@ -1,14 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FitNote } from '@/lib/fit'
 
 export const money = (v: number) =>
   `${v < 0 ? '−' : ''}$${Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-export const money0 = (v: number) => `${v < 0 ? '−' : ''}$${Math.round(Math.abs(v)).toLocaleString('en-US')}`
 export const pct = (v: number, d = 1) => `${(v * 100).toFixed(d)}%`
 export const signed = (v: number, f: (x: number) => string) => (v > 0 ? '+' : v < 0 ? '−' : '') + f(Math.abs(v))
-export const tone = (v: number) => (v > 0 ? 'text-green-400' : v < 0 ? 'text-red-400' : 'text-zinc-400')
+export const tone = (v: number) => (v > 0 ? 'pp-pos' : v < 0 ? 'pp-neg' : '')
 
 /** stockanalysis.com's page for a ticker: funds live under /etf/. */
 export function researchUrl(ticker: string, sector: string) {
@@ -16,23 +15,16 @@ export function researchUrl(ticker: string, sector: string) {
   return sector === 'ETF / fund' ? `https://stockanalysis.com/etf/${t}/` : `https://stockanalysis.com/stocks/${t}/`
 }
 
-const VERDICT_STYLE: Record<FitNote['verdict'], string> = {
-  helps: 'bg-green-500/15 text-green-400 border-green-500/30',
-  neutral: 'bg-zinc-800 text-zinc-300 border-zinc-700',
-  overlaps: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
-  unknown: 'bg-zinc-900 text-zinc-500 border-zinc-800',
-}
-
 /** The little note that sits over a ticker: a verdict chip and one or two sentences. */
 export function FitLine({ note, prefix }: { note: FitNote; prefix?: string }) {
   return (
-    <p className="text-[11px] leading-snug text-zinc-400 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
-      <span className={`px-1.5 py-px rounded-md border text-[10px] font-semibold whitespace-nowrap ${VERDICT_STYLE[note.verdict]}`}>
+    <div className="pp-fit">
+      <span className={`pp-chip pp-chip-${note.verdict}`}>
         {prefix ? `${prefix} · ` : ''}
         {note.label}
       </span>
       <span>{note.text}</span>
-    </p>
+    </div>
   )
 }
 
@@ -40,46 +32,49 @@ export function FitLine({ note, prefix }: { note: FitNote; prefix?: string }) {
 export function Num({
   value,
   onChange,
-  prefix,
-  width = 'w-20',
-  step,
+  money: isMoney = false,
+  width = '4.5rem',
   label,
 }: {
   value: number
   onChange: (v: number) => void
-  prefix?: string
+  money?: boolean
   width?: string
-  step?: number
   label: string
 }) {
   const [draft, setDraft] = useState<string | null>(null)
+  const input = (
+    <input
+      aria-label={label}
+      type="number"
+      inputMode="decimal"
+      step="any"
+      value={draft ?? (Number.isFinite(value) ? String(value) : '')}
+      onChange={(e) => {
+        setDraft(e.target.value)
+        const n = parseFloat(e.target.value)
+        onChange(Number.isFinite(n) ? n : 0)
+      }}
+      onBlur={() => setDraft(null)}
+      className="pp-in pp-r"
+      style={{ width }}
+    />
+  )
+  if (!isMoney) return input
   return (
-    <span className={`relative inline-block ${width}`}>
-      {prefix && <span className="absolute left-1.5 top-1/2 -translate-y-1/2 text-zinc-500 text-xs pointer-events-none">{prefix}</span>}
-      <input
-        aria-label={label}
-        type="number"
-        inputMode="decimal"
-        step={step ?? 'any'}
-        value={draft ?? (Number.isFinite(value) ? String(value) : '')}
-        onChange={(e) => {
-          setDraft(e.target.value)
-          const n = parseFloat(e.target.value)
-          onChange(Number.isFinite(n) ? n : 0)
-        }}
-        onBlur={() => setDraft(null)}
-        className={`w-full bg-zinc-950 text-white text-right rounded-lg border border-zinc-700 focus:outline-none focus:border-blue-500 py-1 pr-1.5 text-sm tabular-nums ${prefix ? 'pl-4' : 'pl-1.5'}`}
-      />
+    <span className="pp-money">
+      <span>$</span>
+      {input}
     </span>
   )
 }
 
-/** A compact text input that commits on blur or Enter (used for tickers, which trigger lookups). */
+/** A compact text input that commits on blur or Enter (tickers trigger lookups, so not on every key). */
 export function Txt({
   value,
   onCommit,
   placeholder,
-  width = 'w-20',
+  width = '4.5rem',
   upper = false,
   label,
 }: {
@@ -106,7 +101,8 @@ export function Txt({
       onKeyDown={(e) => {
         if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
       }}
-      className={`${width} bg-zinc-950 text-white rounded-lg border border-zinc-700 focus:outline-none focus:border-blue-500 px-1.5 py-1 text-sm`}
+      className="pp-in"
+      style={{ width }}
     />
   )
 }
@@ -116,21 +112,16 @@ export function Select<T extends string>({
   options,
   onChange,
   label,
-  width = 'max-w-[9.5rem]',
+  className = '',
 }: {
   value: T
   options: { value: T; label: string }[]
   onChange: (v: T) => void
   label: string
-  width?: string
+  className?: string
 }) {
   return (
-    <select
-      aria-label={label}
-      value={value}
-      onChange={(e) => onChange(e.target.value as T)}
-      className={`bg-zinc-950 text-white rounded-lg border border-zinc-700 focus:outline-none focus:border-blue-500 px-1.5 py-1 text-sm ${width}`}
-    >
+    <select aria-label={label} value={value} onChange={(e) => onChange(e.target.value as T)} className={`pp-sel-in ${className}`}>
       {options.map((o) => (
         <option key={o.value} value={o.value}>
           {o.label}
@@ -139,6 +130,11 @@ export function Select<T extends string>({
     </select>
   )
 }
+
+export const CHAIN_OPTS = [
+  { value: 'ai', label: 'AI data center chain' },
+  { value: 'other', label: 'Outside the chain' },
+] as const
 
 export function Seg<T extends string>({
   value,
@@ -152,22 +148,50 @@ export function Seg<T extends string>({
   label: string
 }) {
   return (
-    <div role="group" aria-label={label} className="flex flex-wrap gap-1.5">
+    <div role="group" aria-label={label} className="pp-seg">
       {options.map((o) => (
-        <button
-          key={o.value}
-          type="button"
-          aria-pressed={value === o.value}
-          onClick={() => onChange(o.value)}
-          className={`px-3 py-1.5 rounded-xl text-xs border transition-colors ${
-            value === o.value
-              ? 'bg-blue-600/20 text-blue-300 border-blue-500/40 font-medium'
-              : 'text-zinc-400 border-zinc-800 hover:text-white hover:bg-zinc-800'
-          }`}
-        >
+        <button key={o.value} type="button" aria-pressed={value === o.value} onClick={() => onChange(o.value)}>
           {o.label}
         </button>
       ))}
     </div>
   )
+}
+
+/** Width of an element, kept current as it resizes. */
+export function useWidth<T extends HTMLElement>() {
+  const ref = useRef<T>(null)
+  const [width, setWidth] = useState(0)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const ro = new ResizeObserver(([e]) => setWidth(e.contentRect.width))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+  return [ref, width] as const
+}
+
+/** A hover tooltip that stays inside its chart. */
+export function useTip() {
+  const box = useRef<HTMLDivElement>(null)
+  const [tip, setTip] = useState<{ left?: number; right?: number; y: number; lines: string[] } | null>(null)
+  const show = (lines: string[]) => (e: React.MouseEvent) => {
+    const r = box.current?.getBoundingClientRect()
+    if (!r) return
+    const x = e.clientX - r.left
+    const flip = x > r.width * 0.6
+    setTip({ left: flip ? undefined : x + 12, right: flip ? r.width - x + 12 : undefined, y: Math.max(0, e.clientY - r.top - 10), lines })
+  }
+  const hide = () => setTip(null)
+  const node = tip ? (
+    <div className="pp-tip" style={{ left: tip.left, right: tip.right, top: tip.y }}>
+      {tip.lines.map((l, i) => (
+        <div key={i} className={i === 0 ? 'pp-tk' : ''}>
+          {l}
+        </div>
+      ))}
+    </div>
+  ) : null
+  return { box, show, hide, node }
 }

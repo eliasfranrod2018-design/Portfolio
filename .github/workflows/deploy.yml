@@ -33,12 +33,11 @@ jobs:
           node-version: 22
           cache: npm
 
-      # Also turns Pages on for the repository the first time this runs.
+      # Pages must be switched on once by hand first: Settings → Pages →
+      # Source: GitHub Actions. The workflow's token is not allowed to.
       - name: Configure Pages
         id: pages
         uses: actions/configure-pages@v5
-        with:
-          enablement: true
 
       - run: npm ci
 
