@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
-import '@fontsource-variable/dm-sans'
+import '@fontsource-variable/inter'
+import '@fontsource-variable/source-serif-4/opsz.css'
 import './plan.css'
 import PlanPage from '@/components/plan/PlanApp'
 

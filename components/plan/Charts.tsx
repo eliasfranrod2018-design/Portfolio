@@ -77,17 +77,19 @@ export function HBars({ rows }: { rows: BarRow[] }) {
   const { box, show, hide, node } = useTip()
   const max = Math.max(...rows.map((r) => Math.max(r.value, r.ref ?? 0)), 0.0001)
   const at = (v: number) => `${(v / max) * 100}%`
+  /* Room on the right for the widest value label, as the original measured it. */
+  const widest = Math.max(...rows.map((r) => (r.value > 0 || (r.ref ?? 0) > 0 ? pct(r.value).length : 0)), 4)
   return (
     <div className="pp-chart" ref={box}>
-      <div className="pp-hbars">
+      <div className="pp-hbars" style={{ ['--pp-reserve' as string]: `calc(${widest * 0.55}em + 10px)` }}>
         {rows.map((r) => (
           <Fragment key={r.label}>
             <span className="pp-lab pp-hit" onMouseMove={show(r.tip)} onMouseLeave={hide}>{r.label}</span>
             <div className="pp-track pp-hit" onMouseMove={show(r.tip)} onMouseLeave={hide}>
               {r.value > 0 && <span className="pp-hbar" style={{ width: at(r.value), minWidth: 2, background: r.color }} />}
-              {r.ref != null && r.ref > 0 && <span className="pp-ref" style={{ left: `calc(${at(r.ref)} - 1px)` }} />}
+              {r.ref != null && <span className="pp-ref" style={{ left: `calc(${at(r.ref)} - 1px)` }} />}
               {(r.value > 0 || (r.ref ?? 0) > 0) && (
-                <span className="pp-hval" style={{ left: `calc(${at(Math.max(r.value, r.ref ?? 0))} + 2px)` }}>
+                <span className="pp-hval" style={{ left: at(Math.max(r.value, r.ref ?? 0)) }}>
                   {pct(r.value)}
                 </span>
               )}
@@ -116,16 +118,27 @@ export function SectorBars({ m, today, scenario }: { m: Metrics; today: Metrics;
   )
 }
 
-export function PositionBars({ positions, account, cash }: { positions: Position[]; account: number; cash: number }) {
+export function PositionBars({
+  positions,
+  account,
+  cash,
+  labels,
+}: {
+  positions: Position[]
+  account: number
+  cash: number
+  /** Names to show in place of a ticker, such as "Health care pick". */
+  labels?: Map<string, string>
+}) {
   const share = (v: number) => (account > 0 ? v / account : 0)
   return (
     <HBars
       rows={[
         ...positions.map((p) => ({
-          label: p.ticker,
+          label: labels?.get(p.ticker) ?? p.ticker,
           value: share(p.value),
           color: p.ai ? AI : OTHER,
-          tip: [p.ticker, p.role || p.sector, `${money(p.value)} · ${pct(share(p.value))} of account`],
+          tip: [labels?.has(p.ticker) ? `${labels.get(p.ticker)}: ${p.ticker}` : p.ticker, p.role || p.sector, `${money(p.value)} · ${pct(share(p.value))} of account`],
         })),
         { label: 'Cash', value: share(cash), color: CASH, tip: ['Cash', `${money(cash)} · ${pct(share(cash))} of account`] },
       ]}
@@ -159,7 +172,7 @@ export function CorrMatrix({ tickers, m }: { tickers: string[]; m: (number | nul
                 <td
                   key={b}
                   title={i === j || m[i][j] === null ? undefined : `${a} and ${b}: ${m[i][j]!.toFixed(2)}`}
-                  style={{ background: i === j ? 'var(--pp-bg)' : bg(m[i][j]) }}
+                  style={{ background: i === j ? 'transparent' : bg(m[i][j]) }}
                 >
                   {i === j ? '' : m[i][j] === null ? '·' : m[i][j]!.toFixed(2)}
                 </td>

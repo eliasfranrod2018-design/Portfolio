@@ -80,10 +80,20 @@ export interface WatchItem {
 
 export interface Plan {
   v: 1
+  /** Which revision of the starting plan this one has been brought up to. */
+  seedRev?: number
   cash: number
   holdings: Holding[]
   watchlist: WatchItem[]
 }
+
+/**
+ * The original full plan held one $250 stock per sector the portfolio lacks.
+ * These are the first option listed for each of those slots; change any of
+ * them to another option in Possibles.
+ */
+const SECTOR_SLOT_PICKS = ['LLY', 'COST', 'NEE', 'O', 'LIN']
+const SEED_REV = 2
 
 export type ScenarioId = 'today' | 'moves' | 'full'
 export const SCENARIOS: { id: ScenarioId; label: string; blurb: string }[] = [
@@ -96,7 +106,7 @@ export const SCENARIOS: { id: ScenarioId; label: string; blurb: string }[] = [
   {
     id: 'full',
     label: 'Full plan',
-    blurb: 'Planned moves plus every "Considering swap" and every name marked "In full plan".',
+    blurb: 'Planned moves plus every "Considering swap" and every name marked "In full plan", including one stock per missing sector.',
   },
 ]
 
@@ -249,11 +259,19 @@ export function hydratePlan(raw: unknown): Plan {
     id: '', ticker: '', name: '', group: 'Ideas', sector: 'Unknown', ai: false, role: '',
     status: 'watching', amount: 250, note: '',
   }
+  let watchlist = Array.isArray(p.watchlist) ? p.watchlist.map((w) => ({ ...blankW, ...w, id: w.id || uid() })) : []
+  /* Plans saved before the sector slots existed get them, unless you already changed that row. */
+  if ((p.seedRev ?? 1) < 2) {
+    watchlist = watchlist.map((w) =>
+      SECTOR_SLOT_PICKS.includes(norm(w.ticker)) && w.status === 'watching' ? { ...w, status: 'full' as const } : w
+    )
+  }
   return {
     v: 1,
+    seedRev: SEED_REV,
     cash: Number(p.cash) || 0,
     holdings: Array.isArray(p.holdings) ? p.holdings.map((h) => ({ ...blankH, ...h, id: h.id || uid() })) : [],
-    watchlist: Array.isArray(p.watchlist) ? p.watchlist.map((w) => ({ ...blankW, ...w, id: w.id || uid() })) : [],
+    watchlist,
   }
 }
 
@@ -322,13 +340,14 @@ const SEED_WATCH: W[] = [
 export function seedPlan(): Plan {
   return {
     v: 1,
+    seedRev: SEED_REV,
     cash: 152.34,
     holdings: SEED_HOLDINGS.map(([ticker, name, shares, price, costBasis, sector, ai, role, rating, plan, swapFor]) => ({
       id: uid(), ticker, name, shares, price, priceMode: 'live', costBasis, sector, ai, role, rating,
       plan: plan ?? 'keep', swapFor: swapFor ?? '', note: '',
     })),
     watchlist: SEED_WATCH.map(([ticker, name, group, sector, ai, role, status, note]) => ({
-      id: uid(), ticker, name, group, sector, ai, role, status, amount: 250, note,
+      id: uid(), ticker, name, group, sector, ai, role, status: SECTOR_SLOT_PICKS.includes(ticker) ? 'full' : status, amount: 250, note,
     })),
   }
 }

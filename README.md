@@ -77,36 +77,43 @@ npx http-server out    # or any static file server
 ## Portfolio plan (`/plan`)
 
 A second page for the portfolio as a whole: what you hold, what you are looking at and
-what you intend to do.
+what you intend to do. It is laid out and styled after the original Portfolio plan
+dashboard: the same sections, tables, charts, colors and spacing, in light and dark.
 
-- **Edit everything**: shares, cost basis, cash, sector and AI-chain link on every
-  holding; add or remove holdings and watchlist names. Prices come from the feed, or type
-  your own (the pencil next to a price).
-- **Plans per holding**: Keep, Sell, *Swap for…* or *Considering swap for…* plus a
-  ticker. A swap target you have not looked at yet is added to the watchlist.
-- **Three scenarios**: Today; After planned moves (sells, swaps and watchlist names
-  marked *Buy (planned)*); Full plan (adds every *Considering swap* and every *In full
-  plan* name). Each shows AI-chain share, independent bets, effective holdings, one-year
-  volatility, sectors and the new money needed.
-- **A note over every ticker**: its correlation with the rest of the portfolio, the
-  holding it moves most like, its share of the portfolio's risk, and — for watchlist
-  names and swaps — what it would do to portfolio volatility. A chip says whether it
-  diversifies or overlaps.
-- **Correlation matrix** of the picked scenario's positions.
+- **Click any value to change it**: name, cost, role, plan, rating and cash read as plain
+  text until you click them. Possibles' name, group, sector, AI link, status and note work
+  the same way.
+- **Point at or tap a ticker** for its note: how it correlates with the rest of the
+  portfolio, the holding it moves most like, its share of the portfolio's risk, and, for
+  possibles and swaps, what it would do to portfolio volatility. The dot after a ticker
+  is green when it diversifies and amber when it adds to what you already own. The same
+  pop-up holds the settings without a column of their own (shares, price, sector, AI
+  link, amount) and removes the ticker.
+- **Plans per holding**: Keep, Sell, *Sell, buy…* or *Considering swap for…* plus a
+  ticker. A swap target you have not looked at yet is added to Possibles.
+- **Three scenarios**: Today; After planned moves (sells, swaps and possibles marked
+  *Buy (planned)*); Full plan (adds every *Considering swap* and every *In full plan*
+  name, including one stock per missing sector).
+- **"Live prices, … ago."** in the summary line opens the price details and the plan
+  controls: refresh, export, import, start over, the ticker list for the feed and the
+  optional Twelve Data key.
+- The correlation matrix for the picked scenario sits in the collapsed line under the
+  reading guide.
 
-Each ticker links to its stockanalysis.com page for research. stockanalysis.com has no
-public data API, so prices come from:
+Each ticker's pop-up links to its stockanalysis.com page for research. stockanalysis.com
+has no public data API, so prices come from:
 
 1. **The build-time feed.** `scripts/fetch-market-data.mjs` writes
    `public/market-data.json` — price and a year of daily closes from Yahoo Finance's
    public chart endpoint — for every ticker in `data/tickers.json`. The Pages workflow
    runs it before each build and rebuilds hourly through the US trading day, so the
    deployed prices are at most about an hour old. Add a ticker to `data/tickers.json` (the
-   page's *Copy ticker list* button gives you the whole list) and push.
+   *Copy ticker list* button gives you the whole list) and push.
 2. **Optionally, Twelve Data from the browser**, for tickers you just added: paste a free
-   API key into the Market data card. The key stays in your browser.
+   API key into the prices pop-up. The key stays in your browser.
 
 The plan itself is stored in `localStorage`; Export / Import move it between devices.
+Fonts are Inter and Source Serif 4, bundled with the site.
 
 ## How the code is laid out
 
